@@ -35,37 +35,23 @@
       },
 
       _adjust: function (y) {
-        console.log('y', y)
         var value = this._toValue(y);
-        console.log('value', value)
-        //return value
         value = Math.max(0, Math.min(this._maxValue, value));
-        //console.log(value)
-        //console.log(this._toY(value))
         return this._toY(value);
       },
 
       // y = k*v + m
       _toY: function (value) {
-        return this._k - ((value / this._maxValue) * this._k)
-        //return this._k * value + this._m;
+        return this._stepHeight - ((value / this._maxValue) * this._stepHeight)
       },
       // v = (y - m) / k
       _toValue: function (y) {
-        return ((this._k - y) / this._k) * this._maxValue
-        //return (y - this._m) / this._k;
+        var v = ((this._stepHeight - y) / this._stepHeight) * this._maxValue
+        return v
       },
 
       setSteps: function (steps) {
-        //var sliderHeight = steps * this._stepHeight;
-        var sliderHeight = this._stepHeight;
         this._maxValue = steps;
-
-        // conversion parameters
-        // the conversion is just a common linear function.
-        this._k = this._stepHeight;
-        console.log('k', this._k)
-        console.log('m', this._maxValue)
       },
 
       setPosition: function (y) {
@@ -74,7 +60,6 @@
       },
 
       setValue: function (v) {
-        console.log('v', v, 'y', this._toY(v))
         this.setPosition(this._toY(v));
       },
 
@@ -87,10 +72,11 @@
       options: {
         position: 'topleft',
         // Height of zoom-slider.png in px
-        stepHeight: 8,
+        stepHeight: 100,
         // Height of the knob div in px (including border)
         knobHeight: 6,
-        styleNS: 'leaflet-control-zoomslider'
+        styleNS: 'leaflet-control-zoomslider',
+        fractional: false
       },
 
       onAdd: function (map) {
@@ -102,15 +88,12 @@
 
         map.whenReady(this._initKnob,        this)
           .whenReady(this._initEvents,      this)
-          .whenReady(this._updateSize,      this)
-          .whenReady(this._updateKnobValue, this)
           .whenReady(this._updateDisabled,  this);
         return this._ui.bar;
       },
 
       onRemove: function (map) {
         map.off('zoomlevelschange',         this._updateSize,      this)
-          .off('zoomend zoomlevelschange', this._updateKnobValue, this)
           .off('zoomend zoomlevelschange', this._updateDisabled,  this);
       },
 
@@ -150,38 +133,52 @@
       },
       _initEvents: function () {
         this._map
-          .on('zoomlevelschange',         this._updateSize,      this)
-          .on('zoomend zoomlevelschange', this._updateKnobValue, this)
+          .on('zoomlevelschange', this._updateSize, this)
           .on('zoomend zoomlevelschange', this._updateDisabled,  this);
 
-        L.DomEvent.on(this._ui.body,    'click', this._onSliderClick, this);
-        L.DomEvent.on(this._ui.zoomIn,  'click', this._zoomIn,        this);
-        L.DomEvent.on(this._ui.zoomOut, 'click', this._zoomOut,       this);
+        L.DomEvent.on(this._ui.body, 'mousedown', this._onSliderClick, this);
+        L.DomEvent.on(this._ui.zoomIn, 'click', this._zoomIn, this);
+        L.DomEvent.on(this._ui.zoomOut, 'click', this._zoomOut, this);
 
-        //this._knob.on('dragend', this._updateMapZoom, this);
         this._knob.on('drag', this._updateMapZoom, this);
       },
 
       _onSliderClick: function (e) {
         var first = (e.touches && e.touches.length === 1 ? e.touches[0] : e),
           y = L.DomEvent.getMousePosition(first, this._ui.body).y;
-
         this._knob.setPosition(y);
         this._updateMapZoom();
       },
 
       _zoomIn: function (e) {
-        this._map.zoomIn(e.shiftKey ? 3 : 1);
+        var z = this._map.getZoom()
+        if (this._map.getZoom() % 1 > 0) {
+          z = Math.ceil(z)
+        } else {
+          z = z + 1
+        }
+        this._map.setZoom(z)
+        this._updateKnobValue(z)
       },
       _zoomOut: function (e) {
-        this._map.zoomOut(e.shiftKey ? 3 : 1);
+        var z = this._map.getZoom()
+        if (this._map.getZoom() % 1 > 0) {
+          z = Math.floor(z)
+        } else {
+          z = z - 1
+        }
+        this._map.setZoom(z)
+        this._updateKnobValue(z)
       },
 
       _zoomLevels: function () {
-        var zoomLevels = this._map.getMaxZoom() - this._map.getMinZoom() + 1;
+        var zoomLevels = this._map.getMaxZoom() - this._map.getMinZoom();
         return zoomLevels < Infinity ? zoomLevels : 0;
       },
       _toZoomLevel: function (value) {
+        if (!this.options.fractional) {
+          value = Math.round(value)
+        }
         return value + this._map.getMinZoom();
       },
       _toValue: function (zoomLevel) {
@@ -190,17 +187,15 @@
 
       _updateSize: function () {
         var steps = this._zoomLevels();
-        //steps = 1000
-        console.log(steps)
-        //this._ui.body.style.height = this.options.stepHeight * steps + 'px';
         this._ui.body.style.height = this.options.stepHeight + 'px';
         this._knob.setSteps(steps);
+        this._updateKnobValue(this._map.getZoom())
       },
       _updateMapZoom: function () {
         this._map.setZoom(this._toZoomLevel(this._knob.getValue()));
       },
-      _updateKnobValue: function () {
-        this._knob.setValue(this._toValue(this._map.getZoom()));
+      _updateKnobValue: function (z) {
+        this._knob.setValue(this._toValue(z));
       },
       _updateDisabled: function () {
         var zoomLevel = this._map.getZoom(),

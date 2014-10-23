@@ -11,7 +11,7 @@
     <style>
       #map {
         width: 400px;
-        height: 400px;
+        height: 600px;
       }
     </style>
   </head>
@@ -24,13 +24,12 @@
       window.onload = function() {
         var map = new L.Map('map', {zoomControl: false}).setView(new L.LatLng(38.85, -77), 7);
 
-        L.control.zoomslider({stepHeight: 200}).addTo(map)
+        L.control.zoomslider({stepHeight: 200, fractional: true}).addTo(map)
 
         L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png', {
           attribution: '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(map)
         map.on('zoomend', function() {
-          console.log(map.getZoom())
           document.getElementById('zoom').innerHTML = map.getZoom()
         })
       }
